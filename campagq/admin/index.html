@@ -56,17 +56,15 @@
     const password = document.getElementById("password").value;
     const message = document.getElementById("message");
 
-    // Only allow the expected username
-    if (usernameInput !== "agqlodge") {
+    if (!usernameInput) {
       message.style.color = "red";
-      message.innerText = "Invalid username";
+      message.innerText = "Enter a username";
       return;
     }
 
-    // Construct email
+    // Construct Firebase email dynamically
     const email = usernameInput + "@camp.local";
 
-    // Firebase sign in
     auth.signInWithEmailAndPassword(email, password)
       .then(() => {
         message.style.color = "green";
