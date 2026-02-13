@@ -7,13 +7,16 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
   <style>
-    body { font-family: Arial; display:flex; justify-content:center; align-items:center; height:100vh; background:#f4f4f4; }
-    .box { background:white; padding:30px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); width:300px; }
+    body { font-family: Arial; display:flex; justify-content:center; align-items:flex-start; padding-top:50px; background:#f4f4f4; }
+    .box { background:white; padding:30px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); width:350px; }
     input, button { width:100%; padding:10px; margin-bottom:10px; border-radius:4px; border:1px solid #ccc; }
     button { background:black; color:white; border:none; cursor:pointer; }
     button:hover { background:#333; }
     #message { text-align:center; color:gray; margin-top:10px; }
     #uploadUI { display:none; }
+    #uploadedFile { margin-top:15px; text-align:center; }
+    #uploadedFile img { max-width:100%; border-radius:4px; }
+    #uploadedFile a { display:block; margin-top:5px; color:#007BFF; text-decoration:none; }
   </style>
 </head>
 <body>
@@ -32,6 +35,7 @@
     <input type="file" id="fileInput">
     <button onclick="uploadFile()">Upload File</button>
     <div id="uploadMessage"></div>
+    <div id="uploadedFile"></div>
   </div>
 </div>
 
@@ -62,7 +66,6 @@
       return;
     }
 
-    // Construct Firebase email dynamically
     const email = usernameInput + "@camp.local";
 
     auth.signInWithEmailAndPassword(email, password)
@@ -71,6 +74,7 @@
         message.innerText = "Logged in!";
         document.getElementById("loginUI").style.display = "none";
         document.getElementById("uploadUI").style.display = "block";
+        displayMostRecentFile();
       })
       .catch(err => {
         console.error(err);
@@ -99,7 +103,6 @@
       return;
     }
 
-    // Ensure user is logged in
     if (!auth.currentUser) {
       msg.style.color = "red";
       msg.innerText = "You must log in first";
@@ -112,12 +115,49 @@
         msg.style.color = "green";
         msg.innerText = "File uploaded!";
         fileInput.value = ""; // clear input
+        displayFile(file.name);
       })
       .catch(err => {
         console.error(err);
         msg.style.color = "red";
         msg.innerText = "Upload failed";
       });
+  }
+
+  // --- Display a file ---
+  function displayFile(filename) {
+    const uploadedDiv = document.getElementById("uploadedFile");
+    const fileRef = storage.ref('uploads/' + filename);
+
+    fileRef.getDownloadURL()
+      .then(url => {
+        // Check file type to display image or link
+        const lower = filename.toLowerCase();
+        if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.gif')) {
+          uploadedDiv.innerHTML = `<img src="${url}" alt="Uploaded file">`;
+        } else {
+          uploadedDiv.innerHTML = `<a href="${url}" target="_blank">Download ${filename}</a>`;
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        uploadedDiv.innerHTML = '';
+      });
+  }
+
+  // --- Display the most recent file ---
+  function displayMostRecentFile() {
+    const listRef = storage.ref('uploads/');
+
+    // List files and take the last one
+    listRef.list({ maxResults: 1 }) // list most recent file (alphabetically, workaround)
+      .then(res => {
+        if (res.items.length > 0) {
+          const latestFile = res.items[res.items.length - 1].name;
+          displayFile(latestFile);
+        }
+      })
+      .catch(err => console.error(err));
   }
 </script>
 
