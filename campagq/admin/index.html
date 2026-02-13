@@ -2,12 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Programming Director Login</title>
+  <title>Programming Director Admin</title>
 
-  <!-- Firebase -->
+  <!-- Firebase Auth (only for login) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
   <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -54,13 +53,13 @@
 
     button:hover { background: #333; }
 
-    #message, #uploadMessage {
+    #message, #pathMessage {
       text-align: center;
       margin-top: 5px;
       font-size: 14px;
     }
 
-    #uploadUI { display: none; }
+    #adminUI { display: none; }
 
     #pdfDisplay canvas {
       display: block;
@@ -83,12 +82,14 @@
     <div id="message"></div>
   </div>
 
-  <!-- UPLOAD UI -->
-  <div id="uploadUI">
-    <h2>Upload Programming PDF</h2>
-    <input type="file" id="pdfInput" accept=".pdf">
-    <button onclick="uploadPDF()">Upload PDF</button>
-    <div id="uploadMessage"></div>
+  <!-- ADMIN UI -->
+  <div id="adminUI">
+    <h2>Set Current Programming PDF</h2>
+    <input type="text" id="pdfPath" placeholder="Enter PDF path e.g. programming/2026-06-22.pdf">
+    <button onclick="updatePath()">Update PDF Path</button>
+    <div id="pathMessage"></div>
+
+    <h2>Current PDF Preview</h2>
     <div id="pdfDisplay"></div>
   </div>
 </div>
@@ -99,13 +100,13 @@
     apiKey: "AIzaSyCGnRRcRQOVWdloCg6-PSj2l4EDnR-CzqI",
     authDomain: "campagqtest-754b1.firebaseapp.com",
     projectId: "campagqtest-754b1",
-    storageBucket: "campagqtest-754b1.firebasestorage.app",
-    messagingSenderId: "378599524521",
     appId: "1:378599524521:web:0d8ea66ccee8e7349b41b8"
   };
   firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
-  const storage = firebase.storage();
+
+  // --- Current PDF Path (hardcoded by default) ---
+  let currentPDF = "programming/2026-06-22.pdf";
 
   // --- Login ---
   function login() {
@@ -121,8 +122,9 @@
         message.style.color = "green";
         message.innerText = "Logged in!";
         document.getElementById("loginUI").style.display = "none";
-        document.getElementById("uploadUI").style.display = "block";
-        displayCurrentPDF();
+        document.getElementById("adminUI").style.display = "block";
+        document.getElementById("pdfPath").value = currentPDF;
+        displayPDF();
       })
       .catch(err => {
         message.style.color = "red";
@@ -133,56 +135,45 @@
       });
   }
 
-  // --- Upload PDF ---
-  function uploadPDF() {
-    const fileInput = document.getElementById("pdfInput");
-    const file = fileInput.files[0];
-    const msg = document.getElementById("uploadMessage");
+  // --- Update PDF Path ---
+  function updatePath() {
+    const pathInput = document.getElementById("pdfPath").value.trim();
+    const msg = document.getElementById("pathMessage");
 
-    if (!file) { msg.style.color="red"; msg.innerText="Select a PDF first"; return; }
-    if (!auth.currentUser) { msg.style.color="red"; msg.innerText="You must log in first"; return; }
+    if (!pathInput) { 
+      msg.style.color = "red"; 
+      msg.innerText = "Enter a valid path"; 
+      return; 
+    }
 
-    const storageRef = storage.ref('programming/current.pdf');
-
-    storageRef.put(file)
-      .then(() => {
-        msg.style.color = "green";
-        msg.innerText = "PDF uploaded!";
-        fileInput.value = "";
-        displayCurrentPDF();
-      })
-      .catch(err => { console.error(err); msg.style.color="red"; msg.innerText="Upload failed"; });
+    currentPDF = pathInput;
+    msg.style.color = "green";
+    msg.innerText = "PDF path updated!";
+    displayPDF();
   }
 
   // --- Display PDF inline ---
-  function displayCurrentPDF() {
+  function displayPDF() {
     const container = document.getElementById("pdfDisplay");
-    const fileRef = storage.ref('programming/current.pdf');
+    container.innerHTML = ""; // clear previous
 
-    fileRef.getDownloadURL()
-      .then(url => {
-        container.innerHTML = ""; // clear previous
-        const loadingTask = pdfjsLib.getDocument(url);
-        loadingTask.promise.then(pdf => {
-          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-            pdf.getPage(pageNum).then(page => {
-              const viewport = page.getViewport({ scale: 1.5 });
-              const canvas = document.createElement("canvas");
-              const context = canvas.getContext("2d");
-              canvas.height = viewport.height;
-              canvas.width = viewport.width;
-              container.appendChild(canvas);
-              page.render({ canvasContext: context, viewport: viewport });
-            });
-          }
-        }).catch(err => {
-          console.error(err);
-          container.innerHTML = "<p>Unable to display PDF</p>";
+    const loadingTask = pdfjsLib.getDocument(currentPDF);
+    loadingTask.promise.then(pdf => {
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        pdf.getPage(pageNum).then(page => {
+          const viewport = page.getViewport({ scale: 1.5 });
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d");
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+          container.appendChild(canvas);
+          page.render({ canvasContext: context, viewport: viewport });
         });
-      })
-      .catch(() => {
-        container.innerHTML = "<p>No PDF uploaded yet.</p>";
-      });
+      }
+    }).catch(err => {
+      console.error(err);
+      container.innerHTML = "<p>Unable to display PDF. Check the path.</p>";
+    });
   }
 </script>
 
