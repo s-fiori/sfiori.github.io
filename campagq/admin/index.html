@@ -2,17 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Admin Login - Programming Upload</title>
+  <title>Admin Login - PDF Upload</title>
 
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
-  <style>
-    * {
-      box-sizing: border-box;
-    }
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
+  <style>
+    * { box-sizing: border-box; }
     body {
       font-family: Arial;
       display: flex;
@@ -22,7 +23,6 @@
       background: #f4f4f4;
       margin: 0;
     }
-
     .box {
       background: white;
       padding: 30px;
@@ -30,7 +30,6 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       width: 420px;
     }
-
     input, button {
       width: 100%;
       padding: 10px;
@@ -39,41 +38,21 @@
       border: 1px solid #ccc;
       font-size: 14px;
     }
-
     button {
       background: black;
       color: white;
       border: none;
       cursor: pointer;
     }
-
-    button:hover {
-      background: #333;
-    }
-
-    #message, #uploadMessage {
-      text-align: center;
-      margin-top: 5px;
-      font-size: 14px;
-    }
-
-    #uploadUI {
-      display: none;
-    }
-
-    #imageDisplay img {
-      display: block;
-      width: 100%;
-      height: auto;
-      margin-top: 15px;
-      border-radius: 6px;
-    }
+    button:hover { background: #333; }
+    #message, #uploadMessage { text-align: center; margin-top: 5px; font-size: 14px; }
+    #uploadUI { display: none; }
+    #pdfDisplay canvas { display: block; margin: 10px auto; width: 100%; height: auto; }
   </style>
 </head>
 <body>
 
 <div class="box">
-
   <!-- LOGIN UI -->
   <div id="loginUI">
     <h2>Admin Login</h2>
@@ -85,13 +64,12 @@
 
   <!-- UPLOAD UI -->
   <div id="uploadUI">
-    <h2>Upload Programming PNG</h2>
-    <input type="file" id="imageInput" accept="image/png">
-    <button onclick="uploadImage()">Upload PNG</button>
+    <h2>Upload Programming PDF</h2>
+    <input type="file" id="pdfInput" accept=".pdf">
+    <button onclick="uploadPDF()">Upload PDF</button>
     <div id="uploadMessage"></div>
-    <div id="imageDisplay"></div>
+    <div id="pdfDisplay"></div>
   </div>
-
 </div>
 
 <script>
@@ -104,23 +82,17 @@
     messagingSenderId: "378599524521",
     appId: "1:378599524521:web:0d8ea66ccee8e7349b41b8"
   };
-
   firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
   const storage = firebase.storage();
 
-  // --- LOGIN ---
+  // --- Login ---
   function login() {
     const usernameInput = document.getElementById("username").value.trim().toLowerCase();
     const password = document.getElementById("password").value;
     const message = document.getElementById("message");
 
-    if (!usernameInput) {
-      message.style.color = "red";
-      message.innerText = "Enter a username";
-      return;
-    }
-
+    if (!usernameInput) { message.style.color="red"; message.innerText="Enter a username"; return; }
     const email = usernameInput + "@camp.local";
 
     auth.signInWithEmailAndPassword(email, password)
@@ -129,7 +101,7 @@
         message.innerText = "Logged in!";
         document.getElementById("loginUI").style.display = "none";
         document.getElementById("uploadUI").style.display = "block";
-        displayCurrentImage();
+        displayCurrentPDF();
       })
       .catch(err => {
         message.style.color = "red";
@@ -140,52 +112,56 @@
       });
   }
 
-  // --- UPLOAD IMAGE ---
-  function uploadImage() {
-    const fileInput = document.getElementById("imageInput");
+  // --- Upload PDF ---
+  function uploadPDF() {
+    const fileInput = document.getElementById("pdfInput");
     const file = fileInput.files[0];
     const msg = document.getElementById("uploadMessage");
 
-    if (!file) {
-      msg.style.color = "red";
-      msg.innerText = "Select a PNG file first";
-      return;
-    }
+    if (!file) { msg.style.color="red"; msg.innerText="Select a PDF first"; return; }
+    if (!auth.currentUser) { msg.style.color="red"; msg.innerText="You must log in first"; return; }
 
-    if (!auth.currentUser) {
-      msg.style.color = "red";
-      msg.innerText = "You must log in first";
-      return;
-    }
-
-    // Always overwrite the same file
-    const storageRef = storage.ref('programming/current.png');
+    const storageRef = storage.ref('programming/current.pdf');
 
     storageRef.put(file)
       .then(() => {
         msg.style.color = "green";
-        msg.innerText = "PNG uploaded successfully!";
+        msg.innerText = "PDF uploaded!";
         fileInput.value = "";
-        displayCurrentImage();
+        displayCurrentPDF();
       })
-      .catch(err => {
-        console.error(err);
-        msg.style.color = "red";
-        msg.innerText = "Upload failed";
-      });
+      .catch(err => { console.error(err); msg.style.color="red"; msg.innerText="Upload failed"; });
   }
 
-  // --- DISPLAY CURRENT IMAGE ---
-  function displayCurrentImage() {
-    const displayDiv = document.getElementById("imageDisplay");
-    const fileRef = storage.ref('programming/current.png');
+  // --- Display PDF inline ---
+  function displayCurrentPDF() {
+    const container = document.getElementById("pdfDisplay");
+    const fileRef = storage.ref('programming/current.pdf');
 
     fileRef.getDownloadURL()
       .then(url => {
-        displayDiv.innerHTML = `<img src="${url}?t=${new Date().getTime()}">`;
+        container.innerHTML = ""; // clear previous
+        const loadingTask = pdfjsLib.getDocument(url);
+        loadingTask.promise.then(pdf => {
+          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            pdf.getPage(pageNum).then(page => {
+              const scale = 1.5;
+              const viewport = page.getViewport({ scale });
+              const canvas = document.createElement("canvas");
+              const context = canvas.getContext("2d");
+              canvas.height = viewport.height;
+              canvas.width = viewport.width;
+              container.appendChild(canvas);
+              page.render({ canvasContext: context, viewport: viewport });
+            });
+          }
+        }).catch(err => {
+          console.error(err);
+          container.innerHTML = "<p>Unable to display PDF</p>";
+        });
       })
       .catch(() => {
-        displayDiv.innerHTML = "<p>No programming uploaded yet.</p>";
+        container.innerHTML = "<p>No PDF uploaded yet.</p>";
       });
   }
 </script>
