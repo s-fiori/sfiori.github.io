@@ -15,39 +15,60 @@
   <style>
     * { box-sizing: border-box; }
     body {
-      font-family: Arial;
+      font-family: Arial, sans-serif;
       display: flex;
       justify-content: center;
       align-items: flex-start;
-      padding-top: 50px;
+      padding: 50px 20px 20px;
       background: #f4f4f4;
       margin: 0;
     }
+
     .box {
       background: white;
       padding: 30px;
       border-radius: 8px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      width: 420px;
+      width: 90%;
+      max-width: 800px;
     }
+
+    h2 { margin-top: 0; font-size: 24px; text-align: center; }
+
     input, button {
       width: 100%;
-      padding: 10px;
-      margin-bottom: 10px;
-      border-radius: 4px;
+      padding: 12px;
+      margin-bottom: 12px;
+      border-radius: 5px;
       border: 1px solid #ccc;
-      font-size: 14px;
+      font-size: 16px;
     }
+
     button {
       background: black;
       color: white;
       border: none;
       cursor: pointer;
+      transition: background 0.2s;
     }
+
     button:hover { background: #333; }
-    #message, #uploadMessage { text-align: center; margin-top: 5px; font-size: 14px; }
+
+    #message, #uploadMessage {
+      text-align: center;
+      margin-top: 5px;
+      font-size: 14px;
+    }
+
     #uploadUI { display: none; }
-    #pdfDisplay canvas { display: block; margin: 10px auto; width: 100%; height: auto; }
+
+    #pdfDisplay canvas {
+      display: block;
+      margin: 15px auto;
+      width: 100%;
+      height: auto;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
   </style>
 </head>
 <body>
@@ -145,8 +166,7 @@
         loadingTask.promise.then(pdf => {
           for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
             pdf.getPage(pageNum).then(page => {
-              const scale = 1.5;
-              const viewport = page.getViewport({ scale });
+              const viewport = page.getViewport({ scale: 1.5 });
               const canvas = document.createElement("canvas");
               const context = canvas.getContext("2d");
               canvas.height = viewport.height;
