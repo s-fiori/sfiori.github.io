@@ -6,17 +6,20 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.12.313/pdf.min.js"></script>
   <style>
     body { font-family: Arial; display:flex; justify-content:center; align-items:flex-start; padding-top:50px; background:#f4f4f4; }
-    .box { background:white; padding:30px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); width:350px; }
+    .box { background:white; padding:30px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); width:420px; }
     input, button { width:100%; padding:10px; margin-bottom:10px; border-radius:4px; border:1px solid #ccc; }
     button { background:black; color:white; border:none; cursor:pointer; }
     button:hover { background:#333; }
     #message { text-align:center; color:gray; margin-top:10px; }
     #uploadUI { display:none; }
-    #uploadedFile { margin-top:15px; text-align:center; }
-    #uploadedFile img, #uploadedFile iframe { max-width:100%; border-radius:4px; }
-    #uploadedFile iframe { height:400px; border:1px solid #ccc; }
+    .upload-section { margin-bottom:25px; }
+    .upload-section h3 { margin-bottom:5px; }
+    .uploaded-file img, .uploaded-file canvas { max-width:100%; border-radius:4px; margin-top:5px; }
+    .uploaded-file canvas { border:1px solid #ccc; }
+    .uploaded-file pre { background:#f0f0f0; padding:10px; border-radius:4px; max-height:400px; overflow:auto; margin-top:5px; }
   </style>
 </head>
 <body>
@@ -32,10 +35,47 @@
 
   <div id="uploadUI">
     <h2>Welcome, Admin!</h2>
-    <input type="file" id="fileInput">
-    <button onclick="uploadFile()">Upload File</button>
-    <div id="uploadMessage"></div>
-    <div id="uploadedFile"></div>
+
+    <!-- Five upload sections -->
+    <div class="upload-section" id="cabinListSection">
+      <h3>Cabin List</h3>
+      <input type="file" id="cabinListInput">
+      <button onclick="uploadFile('cabinListInput','cabinList')">Upload</button>
+      <div class="upload-message" id="cabinListMessage"></div>
+      <div class="uploaded-file" id="cabinListDisplay"></div>
+    </div>
+
+    <div class="upload-section" id="activityAreasSection">
+      <h3>Activity Areas</h3>
+      <input type="file" id="activityAreasInput">
+      <button onclick="uploadFile('activityAreasInput','activityAreas')">Upload</button>
+      <div class="upload-message" id="activityAreasMessage"></div>
+      <div class="uploaded-file" id="activityAreasDisplay"></div>
+    </div>
+
+    <div class="upload-section" id="timeOffSection">
+      <h3>Time Off</h3>
+      <input type="file" id="timeOffInput">
+      <button onclick="uploadFile('timeOffInput','timeOff')">Upload</button>
+      <div class="upload-message" id="timeOffMessage"></div>
+      <div class="uploaded-file" id="timeOffDisplay"></div>
+    </div>
+
+    <div class="upload-section" id="oneInOneOutSection">
+      <h3>One-In One-Out</h3>
+      <input type="file" id="oneInOneOutInput">
+      <button onclick="uploadFile('oneInOneOutInput','oneInOneOut')">Upload</button>
+      <div class="upload-message" id="oneInOneOutMessage"></div>
+      <div class="uploaded-file" id="oneInOneOutDisplay"></div>
+    </div>
+
+    <div class="upload-section" id="postSection">
+      <h3>Post</h3>
+      <input type="file" id="postInput">
+      <button onclick="uploadFile('postInput','post')">Upload</button>
+      <div class="upload-message" id="postMessage"></div>
+      <div class="uploaded-file" id="postDisplay"></div>
+    </div>
   </div>
 </div>
 
@@ -74,28 +114,23 @@
         message.innerText = "Logged in!";
         document.getElementById("loginUI").style.display = "none";
         document.getElementById("uploadUI").style.display = "block";
-        displayMostRecentFile();
+        // display most recent files for all sections
+        ['cabinList','activityAreas','timeOff','oneInOneOut','post'].forEach(section => displayMostRecentFile(section));
       })
       .catch(err => {
         console.error(err);
-        if (err.code === "auth/wrong-password") {
-          message.style.color = "red";
-          message.innerText = "Invalid password";
-        } else if (err.code === "auth/user-not-found") {
-          message.style.color = "red";
-          message.innerText = "User does not exist";
-        } else {
-          message.style.color = "red";
-          message.innerText = "Login failed";
-        }
+        message.style.color = "red";
+        message.innerText = err.code === "auth/wrong-password" ? "Invalid password" :
+                             err.code === "auth/user-not-found" ? "User does not exist" :
+                             "Login failed";
       });
   }
 
   // --- Upload function ---
-  function uploadFile() {
-    const fileInput = document.getElementById("fileInput");
+  function uploadFile(inputId, section) {
+    const fileInput = document.getElementById(inputId);
     const file = fileInput.files[0];
-    const msg = document.getElementById("uploadMessage");
+    const msg = document.getElementById(section + 'Message');
 
     if (!file) {
       msg.style.color = "red";
@@ -109,13 +144,13 @@
       return;
     }
 
-    const storageRef = storage.ref('uploads/' + file.name);
+    const storageRef = storage.ref(section + '/' + file.name);
     storageRef.put(file)
       .then(() => {
         msg.style.color = "green";
         msg.innerText = "File uploaded!";
-        fileInput.value = ""; // clear input
-        displayFile(file.name);
+        fileInput.value = "";
+        displayFile(section, file.name);
       })
       .catch(err => {
         console.error(err);
@@ -124,38 +159,69 @@
       });
   }
 
-  // --- Display a file inline ---
-  function displayFile(filename) {
-    const uploadedDiv = document.getElementById("uploadedFile");
-    const fileRef = storage.ref('uploads/' + filename);
+  // --- Display file ---
+  function displayFile(section, filename) {
+    const displayDiv = document.getElementById(section + 'Display');
+    const fileRef = storage.ref(section + '/' + filename);
+    const lower = filename.toLowerCase();
 
     fileRef.getDownloadURL()
       .then(url => {
-        const lower = filename.toLowerCase();
+        displayDiv.innerHTML = '';
         if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.gif')) {
-          uploadedDiv.innerHTML = `<img src="${url}" alt="Uploaded file">`;
-        } else if (lower.endsWith('.pdf') || lower.endsWith('.txt')) {
-          uploadedDiv.innerHTML = `<iframe src="${url}"></iframe>`;
+          const img = document.createElement('img');
+          img.src = url;
+          img.alt = filename;
+          displayDiv.appendChild(img);
+        } else if (lower.endsWith('.pdf')) {
+          displayPdfAsImage(section, filename);
+        } else if (lower.endsWith('.txt')) {
+          fetch(url).then(res => res.text()).then(text => {
+            const pre = document.createElement('pre');
+            pre.textContent = text;
+            displayDiv.appendChild(pre);
+          });
         } else {
-          uploadedDiv.innerHTML = `<p><a href="${url}" target="_blank">View ${filename}</a></p>`;
+          displayDiv.innerHTML = `<p><a href="${url}" target="_blank">View ${filename}</a></p>`;
         }
       })
       .catch(err => {
         console.error(err);
-        uploadedDiv.innerHTML = '';
+        displayDiv.innerHTML = '';
       });
   }
 
-  // --- Display the most recent file ---
-  function displayMostRecentFile() {
-    const listRef = storage.ref('uploads/');
+  // --- Display PDF as image ---
+  async function displayPdfAsImage(section, filename) {
+    const displayDiv = document.getElementById(section + 'Display');
+    const fileRef = storage.ref(section + '/' + filename);
+    try {
+      const url = await fileRef.getDownloadURL();
+      const loadingTask = pdfjsLib.getDocument(url);
+      const pdf = await loadingTask.promise;
+      const page = await pdf.getPage(1);
+      const viewport = page.getViewport({ scale: 1.5 });
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+      await page.render({ canvasContext: context, viewport: viewport }).promise;
+      displayDiv.innerHTML = '';
+      displayDiv.appendChild(canvas);
+    } catch (err) {
+      console.error(err);
+      displayDiv.innerHTML = '<p>Unable to display PDF</p>';
+    }
+  }
 
-    // List files (Firebase lists alphabetically)
+  // --- Display most recent file ---
+  function displayMostRecentFile(section) {
+    const listRef = storage.ref(section + '/');
     listRef.list({ maxResults: 1 })
       .then(res => {
         if (res.items.length > 0) {
           const latestFile = res.items[res.items.length - 1].name;
-          displayFile(latestFile);
+          displayFile(section, latestFile);
         }
       })
       .catch(err => console.error(err));
